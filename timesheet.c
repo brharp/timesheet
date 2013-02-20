@@ -1,5 +1,4 @@
 
-
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
@@ -363,6 +362,37 @@ time_t parse_duration(const char *s)
 } 
 
 
+
+char *content_disposition;
+char *boundary;
+char *control_name;
+
+void parse_headers()
+{
+	/* parse headers */
+	while ((lp = fgets(line, stdin, sizeof(line))) != 0 && strlen(line) > 0) {
+		name = mystrtok(&lp, ": ");
+		if (strcmp(name, CONTENT_DISPOSITION) == 0) {
+			content_disposition = mystrtok(&lp, "; \r\n");
+			while ((pname = mystrtok(&value, "=")) != 0) {
+				pvalue = mystrtok(&value, "; ");
+				if (strcmp(pvalue, NAME) == 0) {
+					control = strdup(pvalue);
+				}
+			}
+		}
+	}
+}
+
+void process_form()
+{
+	while (fgets(line, stdin, sizeof(line))) {
+		if (strlen(line) > 2 && line[0] == '-' && line[1] == '-' && strcmp(line + 2, boundary) == 0) {
+		}
+		/* parse value */
+		
+	}
+}
 
 /* The main program */
 
