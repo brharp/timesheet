@@ -1,4 +1,3 @@
-
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
@@ -395,6 +394,28 @@ void process_form()
 }
 
 /* The main program */
+
+
+void set_option(struct option *opt)
+{
+	if (strcmp(opt->name, "start") == 0) {
+		start = parse_date(opt->value, false);
+	} else if (strcmp(opt->name, "end") == 0) {
+		end = parse_date(opt->value, false);
+	} else if (strcmp(opt->name, "file") == 0) {
+		file = opt->filename;
+	}
+}
+
+void insert_event(struct event *evt)
+{
+	GROUP *group; 
+	size_t day; 
+	
+	group = find_group(evt->summary); 
+	day = (size_t)((evt->dtstart - start) / 86400); 
+	sheet[group->row][day] += evt->duration;
+}
 
 int main(int argc, char *argv[]) 
 {
