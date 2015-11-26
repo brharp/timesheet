@@ -1,0 +1,212 @@
+<Module>
+  <ModulePrefs
+      height="30"
+      title="Timesheet"
+      description="Display your calendar as a timesheet."
+      author="brharp"
+      author_email="brharp@uoguelph.ca"
+      scrolling="true">
+    <Require feature="views" />
+    <Require feature="google.calendar-0.5" />
+    <Require feature="google.calendar-0.5.read" />
+    <Require feature="dynamic-height"/>
+  </ModulePrefs>
+  <Content type="html" view="home,profile">
+<![CDATA[
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<body>
+<style>
+body {
+  background-color: #fff;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family:Arial;
+  font-size: 12.8px;
+}
+</style>
+
+<script type="text/javascript">
+
+/* Get start and end dates. */
+var googleStartTime;
+var googleEndTime;
+google.calendar.subscribeToDates(function (dates) {
+	googleStartTime = dates.startTime;
+	googleEndTime = dates.endTime;
+});
+
+function goToCanvas() {
+  var jsStartTime = google.calendar.utils.toDate(googleStartTime);
+  var jsEndTime = google.calendar.utils.toDate(googleEndTime);
+  gadgets.views.requestNavigateTo('canvas', {'start': jsStartTime, 'end': jsEndTime});
+  return false;
+};
+
+</script>
+<form style="display:block; text-align:center; margin:0; padding:0" onsubmit="return goToCanvas();">
+  <input type=submit value="View Timesheet">
+</form>
+
+</body>
+</html>
+]]>
+  </Content>
+  <Content type="html" view="canvas">
+  <![CDATA[
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<body>
+<script>
+
+var groups = new Array();
+var groupNames = {};
+var groupCount = 0;
+
+/* Get start and end dates. */
+var jdtStart = new Date(Date.parse(gadgets.views.getParams()['start']));
+var jdtEnd   = new Date(Date.parse(gadgets.views.getParams()['end']));
+
+/* Convert Google calendar dates to JS dates. */
+var gdtStart = google.calendar.utils.fromDate(jdtStart);
+var gdtEnd   = google.calendar.utils.fromDate(jdtEnd);
+
+/* Convert JS dates to UNIX dates. */
+var dtStart = jdtStart.getTime() / 1000;
+var dtEnd   = jdtEnd.getTime()   / 1000;
+
+/* How many days are there from start to end? */
+var columnCount = Math.floor((dtEnd - dtStart) / 86400) + 1;
+
+/* Read events. */
+google.calendar.read.getEvents(function (response) {
+	if ('error' in response[0]) {
+		alert('Something went wrong');
+		return;
+	}
+	/* Get events array. */
+	var events = response[0]['events'];
+	/* Iterate over each event. */ 
+	for(var i = 0; i < events.length; ++i) {
+		var e = events[i];
+		/* Skip all day events. */
+		if (e.allDay) {
+			continue;
+		}
+		/* Get event duration. */
+		var jdtBegin = google.calendar.utils.toDate(e.startTime);
+		var jdtEnd   = google.calendar.utils.toDate(e.endTime);
+		/* Convert JS dates to UNIX dates. */
+		var dtBegin  = jdtBegin.getTime() / 1000;
+		var dtEnd    = jdtEnd.getTime()   / 1000;
+		/* Get duration. */
+		var dtDuration = dtEnd - dtBegin;
+		/* Which (relative) date does this event occur on? */
+		var day = Math.floor((dtBegin - dtStart) / 86400);
+		/* Do we have a row for this group? */
+		title = e.title.replace(/[-:;].*$/, '');
+		title = title.replace(/^\s+|\s+$/g, '');
+		title = title.toLowerCase();
+		if (!groupNames.hasOwnProperty(title)) {
+			/* Create a new row for this group. */
+			groups[groupCount] = new Array();
+			for (var j = 0; j < columnCount; j++) {
+				groups[groupCount][j] = 0;
+			}
+			/* Store the group index. */
+			groupNames[title] = groupCount;
+			/* Count the number of groups. */
+			groupCount++;
+		}
+		/* Add event duration to total. */
+		var groupIndex = groupNames[title];
+		groups[groupIndex][day] += dtDuration;
+	}
+
+	/* Write styles. */
+	document.writeln("<style type='text/css'>table, input { margin: 1em; } table,th,td {border: thin solid #ccc;border-collapse: collapse; } th, td { min-width: 2em; padding: 0.25em; text-align: right; font-family: Arial, sans-serif; font-size: small; } tr.odd { background-color: #efefef; } @media print { input { display: none; } } </style>");
+
+	document.writeln("<div id='content_div'>");
+
+	document.writeln("<input type='button' value='Print' onclick='window.print()'>");
+
+	/* Start table. */
+	document.writeln("<table>");
+
+	/* Print column headers. */
+	document.write("<tr>");
+	document.write("<th></th>");
+	for (var i = 0; i < columnCount; i++) {
+		document.write("<th>");
+		/* What date is this? */
+		var date = new Date((dtStart + i * 86400) * 1000);
+		document.write(date.getMonth() + 1);
+		document.write("/");
+		document.write(date.getDate());
+		document.write("</th>");
+	}
+	document.writeln("</tr>");
+
+	var totals = new Array();
+	for (var j = 0; j < columnCount; j++) {
+		totals[j] = 0;
+	}
+
+	/* Iterate over groups. */
+	for (var k in groupNames) {
+		var sum = 0;
+		var i = groupNames[k];
+		/* Start row. */
+		document.write("<tr");
+		if ((i % 2) == 0) {
+			document.write(" class='odd'");
+		}
+		document.write(">");
+		/* Print group header. */
+		document.write("<th>");
+		document.write(k);
+		document.write("</th>");
+		/* Print group data. */
+		for (var j = 0; j < columnCount; j++) {
+			document.write("<td>");
+			if (groups[i][j] != 0) {
+				var minutes = groups[i][j] / 60;
+				document.write(minutes);
+				sum += minutes;
+				totals[j] += minutes;
+			}
+			document.write("</td>");
+		}
+		/* Print total. */
+		document.write("<th>");
+		document.write(sum);
+		document.write("</th>");
+		/* End row. */
+		document.writeln("</tr>");
+	}
+	/* Write totals. */
+	document.write("<tr><td></td>");
+	for (var j = 0; j < columnCount; j++) {
+		document.write("<th>");
+		if (totals[j] != 0) {
+			document.write(totals[j]);
+		}
+		document.write("</th>");
+	}
+	document.writeln("</tr>");
+	/* End table. */
+	document.writeln("</table>");
+	document.writeln("</div>");
+	/* Adjust height. */
+	gadgets.window.adjustHeight();
+
+}, "selected", gdtStart, gdtEnd);
+
+</script>
+
+</body>
+</html>
+]]>
+</Content>
+</Module>
